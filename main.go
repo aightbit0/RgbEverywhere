@@ -8,6 +8,7 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -18,19 +19,14 @@ import (
 	"github.com/kbinani/screenshot"
 )
 
-type Config struct {
-	displayNumber int
-	pathOfExe     string
-	refreshtime   int
-}
-
 var com *exec.Cmd
+var stdin io.WriteCloser
 
 func main() {
 	takeScreenshot()
 	partImgLoader()
 
-	ticker := time.NewTicker(120 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	quit := make(chan struct{})
 
 	go func() {
@@ -42,11 +38,8 @@ func main() {
 				partImgLoader()
 			case <-quit:
 				ticker.Stop()
-				fmt.Println("Routine gestoppt")
-				if err := com.Process.Kill(); err != nil {
-					log.Fatal("failed to kill process: ", err)
-				}
-				fmt.Println("prozess gekillt")
+				fmt.Println("stopped routine")
+				killProcess()
 				os.Exit(0)
 				return
 			}
@@ -62,7 +55,7 @@ func main() {
 			typ = scanner1.Text()
 		}
 
-		if typ == "e" {
+		if typ == "exit" {
 			close(quit)
 		}
 	}
@@ -70,11 +63,11 @@ func main() {
 
 func partImgLoader() {
 	img, err := loadImage("example.jpg")
+
 	if err != nil {
 		log.Fatal("Failed to load image", err)
 	}
 
-	// Step 2: Process it
 	colours, err := prominentcolor.Kmeans(img)
 	if err != nil {
 		fmt.Println("Failed to process image", err)
@@ -84,22 +77,22 @@ func partImgLoader() {
 	var allColors []string
 
 	fmt.Println("Dominant colours:")
+
 	for _, colour := range colours {
 		allColors = append(allColors, strconv.FormatUint(uint64(colour.Color.R), 10), strconv.FormatUint(uint64(colour.Color.G), 10), strconv.FormatUint(uint64(colour.Color.B), 10))
-		//fmt.Println("#" + colour.AsString())
+	}
+	fmt.Println(allColors)
+
+	if len(allColors) != 9 {
+		fmt.Println("info: not enough colors found !")
+		return
 	}
 
 	if com == nil {
 		changeDecvicesColor(allColors)
 	} else {
-		if err := com.Process.Kill(); err != nil {
-			log.Fatal("failed to kill process: ", err)
-		}
-		fmt.Println("prozess gekillt")
-		changeDecvicesColor(allColors)
+		refreshProcessValues(allColors)
 	}
-
-	fmt.Println(allColors)
 
 }
 
@@ -183,8 +176,6 @@ func loadImage(fileInput string) (image.Image, error) {
 }
 
 func changeDecvicesColor(allColors []string) {
-
-	//fmt.Println(tvalue)
 	app := "color_pulse_by_device_index.exe"
 	arg1 := allColors[0]
 	arg2 := allColors[1]
@@ -198,9 +189,41 @@ func changeDecvicesColor(allColors []string) {
 
 	com = exec.Command(app, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
 
+	stdin2, e := com.StdinPipe()
+	if e != nil {
+		panic(e)
+	}
 	if err := com.Start(); err != nil {
 		log.Fatal(err)
 	}
+
+	stdin = stdin2
+	fmt.Println("started process successfully")
 	return
 
+}
+
+func killProcess() {
+	err := stdin.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if err := com.Process.Kill(); err != nil {
+		log.Fatal("failed to kill process: ", err)
+	}
+	fmt.Println("killed process")
+}
+
+//todo pipe to prozess with allColors as input
+func refreshProcessValues(allColors []string) {
+	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
+	fmt.Println("The Colors : ", theString)
+	//theString := "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + "\n"
+	_, e := stdin.Write([]byte(theString))
+	if e != nil {
+		fmt.Println("failed stdin exit..")
+		killProcess()
+		os.Exit(0)
+	}
 }
