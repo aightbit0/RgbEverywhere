@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
@@ -24,9 +25,7 @@ var stdin io.WriteCloser
 
 func main() {
 	takeScreenshot()
-	partImgLoader()
-
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	quit := make(chan struct{})
 
 	go func() {
@@ -35,7 +34,6 @@ func main() {
 			case <-ticker.C:
 				fmt.Println("read Image")
 				takeScreenshot()
-				partImgLoader()
 			case <-quit:
 				ticker.Stop()
 				fmt.Println("stopped routine")
@@ -61,8 +59,8 @@ func main() {
 	}
 }
 
-func partImgLoader() {
-	img, err := loadImage("example.jpg")
+func partImgLoader(buffer *bytes.Buffer) {
+	img, err := loadImage(buffer)
 
 	if err != nil {
 		log.Fatal("Failed to load image", err)
@@ -96,17 +94,9 @@ func partImgLoader() {
 
 }
 
-func convertToJpeg() {
+func convertToJpeg(buffer *bytes.Buffer) {
 
-	pngImgFile, err := os.Open("example.png")
-
-	if err != nil {
-		fmt.Println("PNG-file.png file not found!")
-		os.Exit(1)
-	}
-
-	defer pngImgFile.Close()
-
+	pngImgFile := buffer
 	// create image from PNG file
 	imgSrc, err := png.Decode(pngImgFile)
 
@@ -119,7 +109,8 @@ func convertToJpeg() {
 	newImg := image.NewRGBA(imgSrc.Bounds())
 	draw.Draw(newImg, newImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
 	draw.Draw(newImg, newImg.Bounds(), imgSrc, imgSrc.Bounds().Min, draw.Over)
-	jpgImgFile, err := os.Create("example.jpg")
+
+	buff := new(bytes.Buffer)
 
 	if err != nil {
 		fmt.Println("Cannot create JPEG-file.jpg !")
@@ -127,12 +118,10 @@ func convertToJpeg() {
 		os.Exit(1)
 	}
 
-	defer jpgImgFile.Close()
-
 	var opt jpeg.Options
 	opt.Quality = 80
 
-	err = jpeg.Encode(jpgImgFile, newImg, &opt)
+	err = jpeg.Encode(buff, newImg, &opt)
 
 	if err != nil {
 		fmt.Println(err)
@@ -140,38 +129,27 @@ func convertToJpeg() {
 	}
 
 	fmt.Println("Converted PNG file to JPEG file")
+	partImgLoader(buff)
 
 }
 
 func takeScreenshot() {
 
-	n := screenshot.NumActiveDisplays()
+	bounds := screenshot.GetDisplayBounds(0)
 
-	for i := 0; i < n; i++ {
-		bounds := screenshot.GetDisplayBounds(0)
-
-		img, err := screenshot.CaptureRect(bounds)
-		if err != nil {
-			panic(err)
-		}
-		fileName := "example.png"
-		file, _ := os.Create(fileName)
-		defer file.Close()
-		png.Encode(file, img)
-
-		fmt.Printf("#%d : %v \"%s\"\n", i, bounds, fileName)
+	img, err := screenshot.CaptureRect(bounds)
+	if err != nil {
+		panic(err)
 	}
 
-	convertToJpeg()
+	buff := new(bytes.Buffer)
+	png.Encode(buff, img)
+
+	convertToJpeg(buff)
 }
 
-func loadImage(fileInput string) (image.Image, error) {
-	f, err := os.Open(fileInput)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	img, _, err := image.Decode(f)
+func loadImage(buffer *bytes.Buffer) (image.Image, error) {
+	img, _, err := image.Decode(buffer)
 	return img, err
 }
 
