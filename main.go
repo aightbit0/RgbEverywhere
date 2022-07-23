@@ -25,7 +25,7 @@ var stdin io.WriteCloser
 
 func main() {
 	takeScreenshot()
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	quit := make(chan struct{})
 
 	go func() {
@@ -60,7 +60,7 @@ func main() {
 }
 
 func partImgLoader(buffer *bytes.Buffer) {
-	img, err := loadImage(buffer)
+	img, _, err := image.Decode(buffer)
 
 	if err != nil {
 		log.Fatal("Failed to load image", err)
@@ -95,14 +95,13 @@ func partImgLoader(buffer *bytes.Buffer) {
 }
 
 func convertToJpeg(buffer *bytes.Buffer) {
-
 	pngImgFile := buffer
 	// create image from PNG file
 	imgSrc, err := png.Decode(pngImgFile)
 
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		return
 	}
 
 	// create a new Image with the same dimension of PNG image
@@ -115,20 +114,18 @@ func convertToJpeg(buffer *bytes.Buffer) {
 	if err != nil {
 		fmt.Println("Cannot create JPEG-file.jpg !")
 		fmt.Println(err)
-		os.Exit(1)
+		return
 	}
-
-	var opt jpeg.Options
-	opt.Quality = 80
-
-	err = jpeg.Encode(buff, newImg, &opt)
+	//var opt jpeg.Options
+	//opt.Quality = 80
+	err = jpeg.Encode(buff, newImg, nil) //&opt
 
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		fmt.Println("FAILED Convert PNG file to JPEG file")
+		return
 	}
 
-	fmt.Println("Converted PNG file to JPEG file")
 	partImgLoader(buff)
 
 }
@@ -148,13 +145,8 @@ func takeScreenshot() {
 	convertToJpeg(buff)
 }
 
-func loadImage(buffer *bytes.Buffer) (image.Image, error) {
-	img, _, err := image.Decode(buffer)
-	return img, err
-}
-
 func changeDecvicesColor(allColors []string) {
-	app := "color_pulse_by_device_index.exe"
+	app := "cpp/color_pulse_by_device_index.exe"
 	arg1 := allColors[0]
 	arg2 := allColors[1]
 	arg3 := allColors[2]
@@ -177,8 +169,6 @@ func changeDecvicesColor(allColors []string) {
 
 	stdin = stdin2
 	fmt.Println("started process successfully")
-	return
-
 }
 
 func killProcess() {
