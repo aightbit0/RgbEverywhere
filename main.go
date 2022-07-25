@@ -6,10 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"image/jpeg"
-	"image/png"
 	"io"
 	"log"
 	"os"
@@ -109,35 +106,7 @@ func (r *MainValues) takeScreenshot() {
 	}
 
 	buff := new(bytes.Buffer)
-	png.Encode(buff, img)
-
-	r.convertToJpeg(buff)
-}
-
-func (r *MainValues) convertToJpeg(buffer *bytes.Buffer) {
-	pngImgFile := buffer
-	// create image from PNG file
-	imgSrc, err := png.Decode(pngImgFile)
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	// create a new Image with the same dimension of PNG image
-	newImg := image.NewRGBA(imgSrc.Bounds())
-	draw.Draw(newImg, newImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
-	draw.Draw(newImg, newImg.Bounds(), imgSrc, imgSrc.Bounds().Min, draw.Over)
-
-	buff := new(bytes.Buffer)
-
-	if err != nil {
-		fmt.Println("Cannot create JPEG-file.jpg !")
-		fmt.Println(err)
-		return
-	}
-	//var opt jpeg.Options
-	//opt.Quality = 80
-	err = jpeg.Encode(buff, newImg, nil) //&opt
+	err = jpeg.Encode(buff, img, nil) //&opt
 
 	if err != nil {
 		fmt.Println(err)
@@ -212,7 +181,6 @@ func (r *MainValues) startExeProgram(allColors []string) {
 func (r *MainValues) refreshProcessValues(allColors []string) {
 	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
 	fmt.Println("The Colors : ", theString)
-	//theString := "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + "\n"
 	_, e := r.stdin.Write([]byte(theString))
 	if e != nil {
 		fmt.Println("failed stdin exit..")
