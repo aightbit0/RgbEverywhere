@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -20,12 +21,26 @@ import (
 	"github.com/kbinani/screenshot"
 )
 
-var com *exec.Cmd
-var stdin io.WriteCloser
+type Config struct {
+	RefreshTime int    `json:"refresh"`
+	PathToExe   string `json:"pathToExe"`
+	Display     int    `json:"display"`
+	Mode        string `json:"mode"`
+}
+
+type MainValues struct {
+	com   *exec.Cmd
+	stdin io.WriteCloser
+	cnf   *Config
+}
 
 func main() {
-	takeScreenshot()
-	ticker := time.NewTicker(5 * time.Second)
+	conf := loadJSONConfig("rgbeverywhereconf.json")
+	//new Instance
+	instance := newInstance(conf)
+	fmt.Println(instance.cnf.RefreshTime)
+	instance.takeScreenshot()
+	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
 	go func() {
@@ -33,18 +48,19 @@ func main() {
 			select {
 			case <-ticker.C:
 				fmt.Println("read Image")
-				takeScreenshot()
+				instance.takeScreenshot()
 			case <-quit:
 				ticker.Stop()
 				fmt.Println("stopped routine")
-				killProcess()
+				if instance.com != nil {
+					instance.killProcess()
+				}
 				os.Exit(0)
 				return
 			}
 		}
 	}()
 
-	//starts routine reading file
 	for {
 		fmt.Print("action: -> ")
 		scanner1 := bufio.NewScanner(os.Stdin)
@@ -59,7 +75,80 @@ func main() {
 	}
 }
 
-func partImgLoader(buffer *bytes.Buffer) {
+func loadJSONConfig(p string) *Config {
+	data, err := os.Open(p)
+	if err != nil {
+		return nil
+	}
+	d := json.NewDecoder(data)
+	var c Config
+	if err := d.Decode(&c); err != nil {
+		return nil
+	}
+
+	return &c
+}
+
+func newInstance(conf *Config) *MainValues {
+	s := MainValues{
+		com:   nil,
+		stdin: nil,
+		cnf:   conf,
+	}
+
+	return &s
+}
+
+func (r *MainValues) takeScreenshot() {
+
+	bounds := screenshot.GetDisplayBounds(r.cnf.Display)
+
+	img, err := screenshot.CaptureRect(bounds)
+	if err != nil {
+		panic(err)
+	}
+
+	buff := new(bytes.Buffer)
+	png.Encode(buff, img)
+
+	r.convertToJpeg(buff)
+}
+
+func (r *MainValues) convertToJpeg(buffer *bytes.Buffer) {
+	pngImgFile := buffer
+	// create image from PNG file
+	imgSrc, err := png.Decode(pngImgFile)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// create a new Image with the same dimension of PNG image
+	newImg := image.NewRGBA(imgSrc.Bounds())
+	draw.Draw(newImg, newImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
+	draw.Draw(newImg, newImg.Bounds(), imgSrc, imgSrc.Bounds().Min, draw.Over)
+
+	buff := new(bytes.Buffer)
+
+	if err != nil {
+		fmt.Println("Cannot create JPEG-file.jpg !")
+		fmt.Println(err)
+		return
+	}
+	//var opt jpeg.Options
+	//opt.Quality = 80
+	err = jpeg.Encode(buff, newImg, nil) //&opt
+
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("FAILED Convert PNG file to JPEG file")
+		return
+	}
+
+	r.partImgLoader(buff)
+}
+
+func (r *MainValues) partImgLoader(buffer *bytes.Buffer) {
 	img, _, err := image.Decode(buffer)
 
 	if err != nil {
@@ -86,67 +175,16 @@ func partImgLoader(buffer *bytes.Buffer) {
 		return
 	}
 
-	if com == nil {
-		changeDecvicesColor(allColors)
+	if r.com == nil {
+		r.startExeProgram(allColors)
 	} else {
-		refreshProcessValues(allColors)
+		r.refreshProcessValues(allColors)
 	}
 
 }
 
-func convertToJpeg(buffer *bytes.Buffer) {
-	pngImgFile := buffer
-	// create image from PNG file
-	imgSrc, err := png.Decode(pngImgFile)
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// create a new Image with the same dimension of PNG image
-	newImg := image.NewRGBA(imgSrc.Bounds())
-	draw.Draw(newImg, newImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
-	draw.Draw(newImg, newImg.Bounds(), imgSrc, imgSrc.Bounds().Min, draw.Over)
-
-	buff := new(bytes.Buffer)
-
-	if err != nil {
-		fmt.Println("Cannot create JPEG-file.jpg !")
-		fmt.Println(err)
-		return
-	}
-	//var opt jpeg.Options
-	//opt.Quality = 80
-	err = jpeg.Encode(buff, newImg, nil) //&opt
-
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("FAILED Convert PNG file to JPEG file")
-		return
-	}
-
-	partImgLoader(buff)
-
-}
-
-func takeScreenshot() {
-
-	bounds := screenshot.GetDisplayBounds(0)
-
-	img, err := screenshot.CaptureRect(bounds)
-	if err != nil {
-		panic(err)
-	}
-
-	buff := new(bytes.Buffer)
-	png.Encode(buff, img)
-
-	convertToJpeg(buff)
-}
-
-func changeDecvicesColor(allColors []string) {
-	app := "cpp/color_pulse_by_device_index.exe"
+func (r *MainValues) startExeProgram(allColors []string) {
+	app := r.cnf.PathToExe
 	arg1 := allColors[0]
 	arg2 := allColors[1]
 	arg3 := allColors[2]
@@ -157,41 +195,40 @@ func changeDecvicesColor(allColors []string) {
 	arg8 := allColors[7]
 	arg9 := allColors[8]
 
-	com = exec.Command(app, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+	r.com = exec.Command(app, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
 
-	stdin2, e := com.StdinPipe()
+	stdin2, e := r.com.StdinPipe()
 	if e != nil {
 		panic(e)
 	}
-	if err := com.Start(); err != nil {
+	if err := r.com.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	stdin = stdin2
+	r.stdin = stdin2
 	fmt.Println("started process successfully")
 }
 
-func killProcess() {
-	err := stdin.Close()
+func (r *MainValues) refreshProcessValues(allColors []string) {
+	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
+	fmt.Println("The Colors : ", theString)
+	//theString := "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + "\n"
+	_, e := r.stdin.Write([]byte(theString))
+	if e != nil {
+		fmt.Println("failed stdin exit..")
+		r.killProcess()
+		os.Exit(0)
+	}
+}
+
+func (r *MainValues) killProcess() {
+	err := r.stdin.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	if err := com.Process.Kill(); err != nil {
+	if err := r.com.Process.Kill(); err != nil {
 		log.Fatal("failed to kill process: ", err)
 	}
 	fmt.Println("killed process")
-}
-
-//todo pipe to prozess with allColors as input
-func refreshProcessValues(allColors []string) {
-	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
-	fmt.Println("The Colors : ", theString)
-	//theString := "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + " " + "0" + " " + "0" + " " + "0" + " " + "255" + "\n"
-	_, e := stdin.Write([]byte(theString))
-	if e != nil {
-		fmt.Println("failed stdin exit..")
-		killProcess()
-		os.Exit(0)
-	}
 }
