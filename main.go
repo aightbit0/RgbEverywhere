@@ -22,13 +22,14 @@ type Config struct {
 	RefreshTime int    `json:"refresh"`
 	PathToExe   string `json:"pathToExe"`
 	Display     int    `json:"display"`
-	Mode        string `json:"mode"`
+	Mode        bool   `json:"mode"`
 }
 
 type MainValues struct {
 	com   *exec.Cmd
 	stdin io.WriteCloser
 	cnf   *Config
+	buff  *bytes.Buffer
 }
 
 func main() {
@@ -44,7 +45,6 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println("read Image")
 				instance.takeScreenshot()
 			case <-quit:
 				ticker.Stop()
@@ -65,7 +65,6 @@ func main() {
 		if scanner1.Scan() {
 			typ = scanner1.Text()
 		}
-
 		if typ == "exit" {
 			close(quit)
 		}
@@ -106,6 +105,7 @@ func (r *MainValues) takeScreenshot() {
 	}
 
 	buff := new(bytes.Buffer)
+
 	err = jpeg.Encode(buff, img, nil) //&opt
 
 	if err != nil {
@@ -132,23 +132,25 @@ func (r *MainValues) partImgLoader(buffer *bytes.Buffer) {
 
 	var allColors []string
 
-	fmt.Println("Dominant colours:")
-
 	for _, colour := range colours {
 		allColors = append(allColors, strconv.FormatUint(uint64(colour.Color.R), 10), strconv.FormatUint(uint64(colour.Color.G), 10), strconv.FormatUint(uint64(colour.Color.B), 10))
 	}
-	fmt.Println(allColors)
+
+	if r.cnf.Mode {
+		fmt.Println("Dominant colours:")
+		fmt.Println(allColors)
+	}
 
 	if len(allColors) != 9 {
 		fmt.Println("info: not enough colors found !")
 		return
 	}
 
-	if r.com == nil {
-		r.startExeProgram(allColors)
-	} else {
+	if r.com != nil {
 		r.refreshProcessValues(allColors)
+		return
 	}
+	r.startExeProgram(allColors)
 
 }
 
@@ -180,7 +182,6 @@ func (r *MainValues) startExeProgram(allColors []string) {
 
 func (r *MainValues) refreshProcessValues(allColors []string) {
 	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
-	fmt.Println("The Colors : ", theString)
 	_, e := r.stdin.Write([]byte(theString))
 	if e != nil {
 		fmt.Println("failed stdin exit..")
