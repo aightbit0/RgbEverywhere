@@ -2,11 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/jpeg"
 	"io"
 	"log"
 	"os"
@@ -29,7 +26,6 @@ type MainValues struct {
 	com   *exec.Cmd
 	stdin io.WriteCloser
 	cnf   *Config
-	buff  *bytes.Buffer
 }
 
 func main() {
@@ -104,27 +100,8 @@ func (r *MainValues) takeScreenshot() {
 		panic(err)
 	}
 
-	buff := new(bytes.Buffer)
-
-	err = jpeg.Encode(buff, img, nil) //&opt
-
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("FAILED Convert PNG file to JPEG file")
-		return
-	}
-
-	r.partImgLoader(buff)
-}
-
-func (r *MainValues) partImgLoader(buffer *bytes.Buffer) {
-	img, _, err := image.Decode(buffer)
-
-	if err != nil {
-		log.Fatal("Failed to load image", err)
-	}
-
 	colours, err := prominentcolor.Kmeans(img)
+
 	if err != nil {
 		fmt.Println("Failed to process image", err)
 		return
@@ -134,11 +111,6 @@ func (r *MainValues) partImgLoader(buffer *bytes.Buffer) {
 
 	for _, colour := range colours {
 		allColors = append(allColors, strconv.FormatUint(uint64(colour.Color.R), 10), strconv.FormatUint(uint64(colour.Color.G), 10), strconv.FormatUint(uint64(colour.Color.B), 10))
-	}
-
-	if r.cnf.Mode {
-		fmt.Println("Dominant colours:")
-		fmt.Println(allColors)
 	}
 
 	if len(allColors) != 9 {
@@ -151,7 +123,6 @@ func (r *MainValues) partImgLoader(buffer *bytes.Buffer) {
 		return
 	}
 	r.startExeProgram(allColors)
-
 }
 
 func (r *MainValues) startExeProgram(allColors []string) {
