@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/EdlinOrg/prominentcolor"
@@ -23,17 +23,27 @@ type Config struct {
 }
 
 type MainValues struct {
-	com   *exec.Cmd
-	stdin io.WriteCloser
-	cnf   *Config
+	cnf     *Config
+	command *term
+}
+
+type term struct {
+	cmd *exec.Cmd
+
+	stdout io.ReadCloser
+	stderr io.ReadCloser
+	stdin  io.WriteCloser
 }
 
 func main() {
 	conf := loadJSONConfig("rgbeverywhereconf.json")
 	//new Instance
+	fmt.Println("started: ", time.Now())
 	instance := newInstance(conf)
 	fmt.Println(instance.cnf.RefreshTime)
-	instance.takeScreenshot()
+	go instance.startExeProgram()
+
+	//instance.takeScreenshot()
 	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
@@ -45,8 +55,8 @@ func main() {
 			case <-quit:
 				ticker.Stop()
 				fmt.Println("stopped routine")
-				if instance.com != nil {
-					instance.killProcess()
+				if instance.command != nil {
+					//instance.killProcess()
 				}
 				os.Exit(0)
 				return
@@ -83,9 +93,7 @@ func loadJSONConfig(p string) *Config {
 
 func newInstance(conf *Config) *MainValues {
 	s := MainValues{
-		com:   nil,
-		stdin: nil,
-		cnf:   conf,
+		cnf: conf,
 	}
 
 	return &s
@@ -97,7 +105,9 @@ func (r *MainValues) takeScreenshot() {
 
 	img, err := screenshot.CaptureRect(bounds)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		fmt.Println("faild getting screen")
+		//panic(err)
 	}
 
 	colours, err := prominentcolor.Kmeans(img)
@@ -117,58 +127,92 @@ func (r *MainValues) takeScreenshot() {
 		fmt.Println("info: not enough colors found !")
 		return
 	}
+	//fmt.Println(allColors)
+	r.refreshProcessValues(allColors)
 
-	if r.com != nil {
-		r.refreshProcessValues(allColors)
-		return
-	}
-	r.startExeProgram(allColors)
 }
 
-func (r *MainValues) startExeProgram(allColors []string) {
+func (r *MainValues) startExeProgram() {
+
 	app := r.cnf.PathToExe
-	arg1 := allColors[0]
-	arg2 := allColors[1]
-	arg3 := allColors[2]
-	arg4 := allColors[3]
-	arg5 := allColors[4]
-	arg6 := allColors[5]
-	arg7 := allColors[6]
-	arg8 := allColors[7]
-	arg9 := allColors[8]
 
-	r.com = exec.Command(app, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+	c := exec.Command(app)
 
-	stdin2, e := r.com.StdinPipe()
-	if e != nil {
-		panic(e)
-	}
-	if err := r.com.Start(); err != nil {
-		log.Fatal(err)
+	c.SysProcAttr = &syscall.SysProcAttr{}
+	//c.SysProcAttr.CreationFlags = 16 // CREATE_NEW_CONSOLE
+
+	stdin, err := c.StdinPipe()
+
+	if err != nil {
+		fmt.Println(err)
 	}
 
-	r.stdin = stdin2
+	stdout, err := c.StdoutPipe()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	stderr, err := c.StderrPipe()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	t := &term{}
+	t.cmd = c
+	t.stderr = stderr
+	t.stdout = stdout
+	t.stdin = stdin
+
+	err = t.cmd.Start()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	r.command = t
 	fmt.Println("started process successfully")
+
+	done := make(chan error)
+	go func() { done <- r.command.cmd.Wait() }()
+
+	select {
+	case erro := <-done:
+		{
+			if erro != nil {
+				fmt.Println("Non-zero exit code:", erro)
+			}
+		}
+	}
+
 }
 
 func (r *MainValues) refreshProcessValues(allColors []string) {
-	theString := allColors[0] + " " + allColors[1] + " " + allColors[2] + " " + allColors[3] + " " + allColors[4] + " " + allColors[5] + " " + allColors[6] + " " + allColors[7] + " " + allColors[8] + "\n"
-	_, e := r.stdin.Write([]byte(theString))
+	theString := allColors[0] + "," + allColors[1] + "," + allColors[2] + "," + allColors[3] + "," + allColors[4] + "," + allColors[5] + "," + allColors[6] + "," + allColors[7] + "," + allColors[8] + "\n"
+	_, e := r.command.stdin.Write([]byte(theString))
 	if e != nil {
 		fmt.Println("failed stdin exit..")
-		r.killProcess()
+		fmt.Println(e)
+		fmt.Println(theString)
+		//r.killProcess()
+		fmt.Println("ended: ", time.Now())
+		//r.killProcess()
 		os.Exit(0)
 	}
 }
 
 func (r *MainValues) killProcess() {
-	err := r.stdin.Close()
+	fmt.Println("killing process")
+	err := r.command.stdin.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	if err := r.com.Process.Kill(); err != nil {
-		log.Fatal("failed to kill process: ", err)
+	if err := r.command.cmd.Process.Kill(); err != nil {
+		fmt.Println("failed to kill process: ", err)
 	}
-	fmt.Println("killed process")
+
+	os.Exit(0)
+	//r.com = nil
+	//r.stdin = nil
 }

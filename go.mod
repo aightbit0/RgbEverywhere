@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/EdlinOrg/prominentcolor v1.0.0 // indirect
+	github.com/creack/pty v1.1.18 // indirect
 	github.com/gen2brain/shm v0.0.0-20210511105953-083dbc7d9d83 // indirect
 	github.com/jezek/xgb v1.0.1 // indirect
 	github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 // indirect
