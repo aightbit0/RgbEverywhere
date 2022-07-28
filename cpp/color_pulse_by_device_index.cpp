@@ -21,8 +21,13 @@
 #include <unordered_map>
 #include <cmath>
 
+#include <mutex>
+#include <string>
+#include <sstream>
+
 using LedColorsVector = std::vector<CorsairLedColor>;
 using AvailableKeys = std::unordered_map<int /*device index*/, LedColorsVector>;
+std::mutex m;
 
 const char* toString(CorsairError error)
 {
@@ -44,7 +49,7 @@ const char* toString(CorsairError error)
 	}
 }
 
-AvailableKeys getAvailableKeys(int colorsByGo[])
+AvailableKeys getAvailableKeys(std::vector<int> colorsByGo)
 {
 	AvailableKeys availableKeys;
 
@@ -73,16 +78,18 @@ AvailableKeys getAvailableKeys(int colorsByGo[])
 	return availableKeys;
 }
 
-void performPulseEffect(int waveDuration, AvailableKeys &availableKeys)
+void performPulseEffect(AvailableKeys &availableKeys)
 {
 	const auto timePerFrame = 25;
-
+	//std::lock_guard<std::mutex> guard(myMutex);
+	m.lock();
 		for (auto &ledColorsByDeviceIndex : availableKeys) {
 			auto &deviceIndex = ledColorsByDeviceIndex.first;
 			auto &ledColorsVec = ledColorsByDeviceIndex.second;
 			CorsairSetLedsColorsBufferByDeviceIndex(deviceIndex, static_cast<int>(ledColorsVec.size()), ledColorsVec.data());
 		}
 		CorsairSetLedsColorsFlushBufferAsync(nullptr, nullptr);
+	m.unlock();
 		std::this_thread::sleep_for(std::chrono::milliseconds(timePerFrame));
 }
 
@@ -90,37 +97,36 @@ void performPulseEffect(int waveDuration, AvailableKeys &availableKeys)
 void consoleInputs(AvailableKeys* pt)
 {
 	bool checker = true;
-	int color2[9] = { 0,0,0,0,0,0,0,0,0};
-	int i = 0;
 	while (checker == true) {
 		checker = false;
-		//std::this_thread::sleep_for(std::chrono::seconds(5));
 		std::string test;
 		std::cin >> test;
-		std::cout << "das ist der wert: " << test << std::endl;
-		if (test != "") {
+		if (test.size() > 2) {
 			checker = true;
-			color2[i] = atoi(test.c_str());
-			if (i < 9) {
-				i++;
-				if (i == 9) {
-					for (int w = 0; w < 9; w++)
-					{
-						std::cout << color2[w] << std::endl;
-					}
-					i = 0;
-					*pt = getAvailableKeys(color2);
-				}
+			std::vector<int> vect;
+			std::stringstream ss(test);
+			for (int i; ss >> i;) {
+				vect.push_back(i);
+				if (ss.peek() == ',')
+					ss.ignore();
 			}
+			if (vect.size() == 9) {
+				//std::lock_guard<std::mutex> guard(myMutex);
+				m.lock();
+					*pt = getAvailableKeys(vect);
+				m.unlock();
+			}
+			
 		}
 		else {
-			*pt = getAvailableKeys(color2);
+			checker = true;
 		}
 	}	
 }
 
-int main(int argc, char**argv)
+int main()
 {
+	
 	CorsairPerformProtocolHandshake();
 	if (const auto error = CorsairGetLastError()) {
 		std::cout << "Handshake failed: " << toString(error) << "\nPress any key to quit." << std::endl;
@@ -128,28 +134,11 @@ int main(int argc, char**argv)
 		return -1;
 	}
 
-	std::atomic_int waveDuration{ 2500 };
 	std::atomic_bool continueExecution{ true };
+	std::vector<int> vect(9);
 
-	int color1[9] = {0,0,0,0,0,0,0,0,0};
-
-	std::cout << "You have entered " << argc
-	<< " arguments:" << "\n";
-
-	if (argc != 1) {
-		for (int i = 0; i < argc; ++i) {
-			std::cout << argv[i] << "\n";
-			if (i != 0) {
-				std::string arg1(argv[i]);
-				std::cout << arg1 << "\n";
-				color1[i - 1] = atoi(arg1.c_str());
-			}
-		}
-	}
-
-	auto availableKeys = getAvailableKeys(color1);
-
-	AvailableKeys* ptr = &availableKeys;
+	auto availableKeys = getAvailableKeys(vect);
+	auto* ptr = &availableKeys;
 	
 	if (availableKeys.empty()) {
 		return 1;
@@ -158,7 +147,7 @@ int main(int argc, char**argv)
 	std::thread consoleInputs(consoleInputs, ptr);
 
 	while (true) {
-		performPulseEffect(waveDuration, availableKeys);
+		performPulseEffect(availableKeys);
 	}
 
 	consoleInputs.join();
