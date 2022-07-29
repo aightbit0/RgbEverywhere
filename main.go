@@ -19,7 +19,6 @@ type Config struct {
 	RefreshTime int    `json:"refresh"`
 	PathToExe   string `json:"pathToExe"`
 	Display     int    `json:"display"`
-	Mode        bool   `json:"mode"`
 }
 
 type MainValues struct {
@@ -40,10 +39,7 @@ func main() {
 	//new Instance
 	fmt.Println("started: ", time.Now())
 	instance := newInstance(conf)
-	fmt.Println(instance.cnf.RefreshTime)
 	go instance.startExeProgram()
-
-	//instance.takeScreenshot()
 	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
@@ -55,8 +51,8 @@ func main() {
 			case <-quit:
 				ticker.Stop()
 				fmt.Println("stopped routine")
-				if instance.command != nil {
-					//instance.killProcess()
+				if instance.command.cmd != nil {
+					instance.killProcess()
 				}
 				os.Exit(0)
 				return
@@ -107,7 +103,7 @@ func (r *MainValues) takeScreenshot() {
 	if err != nil {
 		fmt.Println(err)
 		fmt.Println("faild getting screen")
-		//panic(err)
+		return
 	}
 
 	colours, err := prominentcolor.Kmeans(img)
@@ -127,34 +123,27 @@ func (r *MainValues) takeScreenshot() {
 		fmt.Println("info: not enough colors found !")
 		return
 	}
-	//fmt.Println(allColors)
+
 	r.refreshProcessValues(allColors)
 
 }
 
 func (r *MainValues) startExeProgram() {
-
 	app := r.cnf.PathToExe
-
 	c := exec.Command(app)
-
 	c.SysProcAttr = &syscall.SysProcAttr{}
-	//c.SysProcAttr.CreationFlags = 16 // CREATE_NEW_CONSOLE
 
 	stdin, err := c.StdinPipe()
-
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	stdout, err := c.StdoutPipe()
-
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	stderr, err := c.StderrPipe()
-
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -175,29 +164,19 @@ func (r *MainValues) startExeProgram() {
 
 	done := make(chan error)
 	go func() { done <- r.command.cmd.Wait() }()
-
-	select {
-	case erro := <-done:
-		{
-			if erro != nil {
-				fmt.Println("Non-zero exit code:", erro)
-			}
-		}
+	erro := <-done
+	if erro != nil {
+		fmt.Println("Non-zero exit code:", erro)
 	}
-
 }
 
 func (r *MainValues) refreshProcessValues(allColors []string) {
 	theString := allColors[0] + "," + allColors[1] + "," + allColors[2] + "," + allColors[3] + "," + allColors[4] + "," + allColors[5] + "," + allColors[6] + "," + allColors[7] + "," + allColors[8] + "\n"
 	_, e := r.command.stdin.Write([]byte(theString))
 	if e != nil {
-		fmt.Println("failed stdin exit..")
+		fmt.Println("failed writing trough stdin pipe")
 		fmt.Println(e)
-		fmt.Println(theString)
-		//r.killProcess()
-		fmt.Println("ended: ", time.Now())
-		//r.killProcess()
-		os.Exit(0)
+		r.killProcess()
 	}
 }
 
@@ -211,8 +190,6 @@ func (r *MainValues) killProcess() {
 	if err := r.command.cmd.Process.Kill(); err != nil {
 		fmt.Println("failed to kill process: ", err)
 	}
-
+	fmt.Println("ended: ", time.Now())
 	os.Exit(0)
-	//r.com = nil
-	//r.stdin = nil
 }
