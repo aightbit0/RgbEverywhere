@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"os"
 	"os/exec"
@@ -33,6 +35,8 @@ type term struct {
 	stderr io.ReadCloser
 	stdin  io.WriteCloser
 }
+
+var optimzed bool = false
 
 func main() {
 	conf := loadJSONConfig("rgbeverywhereconf.json")
@@ -99,11 +103,30 @@ func (r *MainValues) takeScreenshot() {
 
 	bounds := screenshot.GetDisplayBounds(r.cnf.Display)
 
-	img, err := screenshot.CaptureRect(bounds)
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("faild getting screen")
-		return
+	var img *image.RGBA
+	var err error
+
+	if optimzed {
+
+		img, err = screenshot.Capture(0, 470, 2560, 500) //screenshot.CaptureRect(bounds)
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("failed getting screen")
+			return
+		}
+
+		fileName := fmt.Sprintf("%d_%d.png", bounds.Dx(), bounds.Dy())
+		file, _ := os.Create(fileName)
+		defer file.Close()
+		png.Encode(file, img)
+
+	} else {
+		img, err = screenshot.Capture(0, 470, 2560, 500) //screenshot.CaptureRect(bounds)
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("failed getting screen")
+			return
+		}
 	}
 
 	colours, err := prominentcolor.Kmeans(img)
