@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/png"
 	"io"
 	"os"
 	"os/exec"
@@ -44,7 +43,7 @@ func main() {
 	//new Instance
 	fmt.Println("started: ", time.Now())
 	instance := newInstance(conf)
-	//go instance.startExeProgram()
+	go instance.startExeProgram()
 	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
@@ -101,9 +100,6 @@ func newInstance(conf *Config) *MainValues {
 }
 
 func (r *MainValues) takeScreenshot() {
-
-	//bounds := screenshot.GetDisplayBounds(r.cnf.Display)
-
 	var img *image.RGBA
 	var err error
 
@@ -131,61 +127,27 @@ func (r *MainValues) takeScreenshot() {
 	sp2 := image.Point{img.Bounds().Dx(), img.Bounds().Dy()}
 	//second image Bounds but only the Y (height)
 	tempPoint := image.Point{0, img2.Bounds().Dy()}
+	tempPoint2 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy()}
+	tempPoint3 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy() + img2.Bounds().Dy()}
 	//adding the theoretical size together
-	r2 := image.Rectangle{sp2, sp2.Add(tempPoint)}
+	r2 := image.Rectangle{sp2, sp2.Add(tempPoint2)} //2
 	//creates the calculated stuff as an image Rectangle
 	rgg := image.Rectangle{image.Point{0, 0}, r2.Max}
 	//creates a image
 	rgba := image.NewRGBA(rgg)
 
-	draw.Draw(rgba, img.Bounds().Add(tempPoint), img, image.Point{0, 0}, draw.Src)
+	draw.Draw(rgba, img.Bounds().Add(tempPoint), img, image.Point{0, 0}, draw.Src) //2
 
 	draw.Draw(rgba, img2.Bounds(), img2, image.Point{0, 0}, draw.Src)
 
-	fileName := "1_1_1.png"
-	file, _ := os.Create(fileName)
-	defer file.Close()
-	png.Encode(file, rgba)
-
-	os.Exit(0)
-
-	fileName2 := "1_1_2.png"
-	file2, _ := os.Create(fileName2)
-	defer file2.Close()
-	png.Encode(file2, img2)
-
-	fileName3 := "1_1_3.png"
-	file3, _ := os.Create(fileName3)
-	defer file3.Close()
-	png.Encode(file3, img3)
+	draw.Draw(rgba, img3.Bounds().Add(tempPoint3), img3, image.Point{0, 0}, draw.Src) //3
 
 	colours, err := prominentcolor.Kmeans(img)
-	img = nil
 
 	if err != nil {
 		fmt.Println("Failed to process image", err)
 		//return
 	}
-
-	colours2, err3 := prominentcolor.Kmeans(img2)
-	if err3 != nil {
-		fmt.Println("Failed to process image", err)
-		//return
-	}
-
-	colours3, err4 := prominentcolor.Kmeans(img3)
-	if err4 != nil {
-		fmt.Println("Failed to process image", err)
-		//return
-	}
-
-	fmt.Println(colours2[0].Color.B)
-	fmt.Println(colours3[0].Color.B)
-
-	info, _ := os.Stat("1_1_1.png")
-	info2, _ := os.Stat("1_1_2.png")
-	info3, _ := os.Stat("1_1_3.png")
-	fmt.Println("size = ", (info.Size()/1000 + info2.Size()/1000 + info3.Size()/1000))
 
 	var allColors []string
 
@@ -197,8 +159,8 @@ func (r *MainValues) takeScreenshot() {
 		fmt.Println("info: not enough colors found !")
 		return
 	}
-
-	//r.refreshProcessValues(allColors)
+	img = nil
+	r.refreshProcessValues(allColors)
 
 }
 
