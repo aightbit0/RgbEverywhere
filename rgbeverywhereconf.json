@@ -1,5 +1,5 @@
 {
-	"refresh": 2000,
+	"refresh": 1000,
 	"pathToExe": "cpp/color_pulse_by_device_index.exe",
 	"display": 0
 }

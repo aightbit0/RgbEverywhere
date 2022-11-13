@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
 	"io"
 	"os"
 	"os/exec"
@@ -33,6 +35,8 @@ type term struct {
 	stderr io.ReadCloser
 	stdin  io.WriteCloser
 }
+
+var optimzed bool = true
 
 func main() {
 	conf := loadJSONConfig("rgbeverywhereconf.json")
@@ -96,21 +100,53 @@ func newInstance(conf *Config) *MainValues {
 }
 
 func (r *MainValues) takeScreenshot() {
+	var img *image.RGBA
+	var err error
 
-	bounds := screenshot.GetDisplayBounds(r.cnf.Display)
-
-	img, err := screenshot.CaptureRect(bounds)
-	if err != nil {
+	img2, err2 := screenshot.Capture(0, 0, 2560, 200)
+	if err2 != nil {
 		fmt.Println(err)
-		fmt.Println("faild getting screen")
+		fmt.Println("failed getting screen")
 		return
 	}
+	img, err = screenshot.Capture(0, 520, 2560, 400)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("failed getting screen")
+		return
+	}
+
+	img3, err2 := screenshot.Capture(0, 1200, 2560, 200)
+	if err2 != nil {
+		fmt.Println(err)
+		fmt.Println("failed getting screen")
+		return
+	}
+
+	//first image bounds
+	sp2 := image.Point{img.Bounds().Dx(), img.Bounds().Dy()}
+	//second image Bounds but only the Y (height)
+	tempPoint := image.Point{0, img2.Bounds().Dy()}
+	tempPoint2 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy()}
+	tempPoint3 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy() + img2.Bounds().Dy()}
+	//adding the theoretical size together
+	r2 := image.Rectangle{sp2, sp2.Add(tempPoint2)} //2
+	//creates the calculated stuff as an image Rectangle
+	rgg := image.Rectangle{image.Point{0, 0}, r2.Max}
+	//creates a image
+	rgba := image.NewRGBA(rgg)
+
+	draw.Draw(rgba, img.Bounds().Add(tempPoint), img, image.Point{0, 0}, draw.Src) //2
+
+	draw.Draw(rgba, img2.Bounds(), img2, image.Point{0, 0}, draw.Src)
+
+	draw.Draw(rgba, img3.Bounds().Add(tempPoint3), img3, image.Point{0, 0}, draw.Src) //3
 
 	colours, err := prominentcolor.Kmeans(img)
 
 	if err != nil {
 		fmt.Println("Failed to process image", err)
-		return
+		//return
 	}
 
 	var allColors []string
@@ -123,7 +159,7 @@ func (r *MainValues) takeScreenshot() {
 		fmt.Println("info: not enough colors found !")
 		return
 	}
-
+	img = nil
 	r.refreshProcessValues(allColors)
 
 }
