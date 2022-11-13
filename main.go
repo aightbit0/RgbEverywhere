@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"io"
 	"os"
@@ -36,14 +37,14 @@ type term struct {
 	stdin  io.WriteCloser
 }
 
-var optimzed bool = false
+var optimzed bool = true
 
 func main() {
 	conf := loadJSONConfig("rgbeverywhereconf.json")
 	//new Instance
 	fmt.Println("started: ", time.Now())
 	instance := newInstance(conf)
-	go instance.startExeProgram()
+	//go instance.startExeProgram()
 	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
@@ -101,40 +102,90 @@ func newInstance(conf *Config) *MainValues {
 
 func (r *MainValues) takeScreenshot() {
 
-	bounds := screenshot.GetDisplayBounds(r.cnf.Display)
+	//bounds := screenshot.GetDisplayBounds(r.cnf.Display)
 
 	var img *image.RGBA
 	var err error
 
-	if optimzed {
-
-		img, err = screenshot.Capture(0, 470, 2560, 500) //screenshot.CaptureRect(bounds)
-		if err != nil {
-			fmt.Println(err)
-			fmt.Println("failed getting screen")
-			return
-		}
-
-		fileName := fmt.Sprintf("%d_%d.png", bounds.Dx(), bounds.Dy())
-		file, _ := os.Create(fileName)
-		defer file.Close()
-		png.Encode(file, img)
-
-	} else {
-		img, err = screenshot.Capture(0, 470, 2560, 500) //screenshot.CaptureRect(bounds)
-		if err != nil {
-			fmt.Println(err)
-			fmt.Println("failed getting screen")
-			return
-		}
+	img2, err2 := screenshot.Capture(0, 0, 2560, 200)
+	if err2 != nil {
+		fmt.Println(err)
+		fmt.Println("failed getting screen")
+		return
+	}
+	img, err = screenshot.Capture(0, 520, 2560, 400)
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println("failed getting screen")
+		return
 	}
 
+	img3, err2 := screenshot.Capture(0, 1200, 2560, 200)
+	if err2 != nil {
+		fmt.Println(err)
+		fmt.Println("failed getting screen")
+		return
+	}
+
+	//first image bounds
+	sp2 := image.Point{img.Bounds().Dx(), img.Bounds().Dy()}
+	//second image Bounds but only the Y (height)
+	tempPoint := image.Point{0, img2.Bounds().Dy()}
+	//adding the theoretical size together
+	r2 := image.Rectangle{sp2, sp2.Add(tempPoint)}
+	//creates the calculated stuff as an image Rectangle
+	rgg := image.Rectangle{image.Point{0, 0}, r2.Max}
+	//creates a image
+	rgba := image.NewRGBA(rgg)
+
+	draw.Draw(rgba, img.Bounds().Add(tempPoint), img, image.Point{0, 0}, draw.Src)
+
+	draw.Draw(rgba, img2.Bounds(), img2, image.Point{0, 0}, draw.Src)
+
+	fileName := "1_1_1.png"
+	file, _ := os.Create(fileName)
+	defer file.Close()
+	png.Encode(file, rgba)
+
+	os.Exit(0)
+
+	fileName2 := "1_1_2.png"
+	file2, _ := os.Create(fileName2)
+	defer file2.Close()
+	png.Encode(file2, img2)
+
+	fileName3 := "1_1_3.png"
+	file3, _ := os.Create(fileName3)
+	defer file3.Close()
+	png.Encode(file3, img3)
+
 	colours, err := prominentcolor.Kmeans(img)
+	img = nil
 
 	if err != nil {
 		fmt.Println("Failed to process image", err)
-		return
+		//return
 	}
+
+	colours2, err3 := prominentcolor.Kmeans(img2)
+	if err3 != nil {
+		fmt.Println("Failed to process image", err)
+		//return
+	}
+
+	colours3, err4 := prominentcolor.Kmeans(img3)
+	if err4 != nil {
+		fmt.Println("Failed to process image", err)
+		//return
+	}
+
+	fmt.Println(colours2[0].Color.B)
+	fmt.Println(colours3[0].Color.B)
+
+	info, _ := os.Stat("1_1_1.png")
+	info2, _ := os.Stat("1_1_2.png")
+	info3, _ := os.Stat("1_1_3.png")
+	fmt.Println("size = ", (info.Size()/1000 + info2.Size()/1000 + info3.Size()/1000))
 
 	var allColors []string
 
@@ -147,7 +198,7 @@ func (r *MainValues) takeScreenshot() {
 		return
 	}
 
-	r.refreshProcessValues(allColors)
+	//r.refreshProcessValues(allColors)
 
 }
 
