@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
-	"image/draw"
 	"io"
 	"os"
 	"os/exec"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/EdlinOrg/prominentcolor"
 	"github.com/kbinani/screenshot"
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 type Config struct {
@@ -29,21 +29,20 @@ type MainValues struct {
 }
 
 type term struct {
-	cmd *exec.Cmd
-
-	stdout io.ReadCloser
-	stderr io.ReadCloser
-	stdin  io.WriteCloser
+	cmd   *exec.Cmd
+	stdin io.WriteCloser
 }
 
-var optimzed bool = true
+var rgba_old *image.RGBA
+var old_distance float64
 
 func main() {
+
 	conf := loadJSONConfig("rgbeverywhereconf.json")
 	//new Instance
 	fmt.Println("started: ", time.Now())
 	instance := newInstance(conf)
-	go instance.startExeProgram()
+	instance.startExeProgram()
 	ticker := time.NewTicker(time.Duration(instance.cnf.RefreshTime) * time.Millisecond)
 	quit := make(chan struct{})
 
@@ -103,64 +102,94 @@ func (r *MainValues) takeScreenshot() {
 	var img *image.RGBA
 	var err error
 
-	img2, err2 := screenshot.Capture(0, 0, 2560, 200)
+	// Decode the image (from PNG to image.Image):
+
+	img2, err2 := screenshot.Capture(0, 500, 250, 250)
 	if err2 != nil {
 		fmt.Println(err)
 		fmt.Println("failed getting screen")
 		return
 	}
-	img, err = screenshot.Capture(0, 520, 2560, 400)
-	if err != nil {
-		fmt.Println(err)
-		fmt.Println("failed getting screen")
-		return
+	/*
+		fileName := "1_1_1.png"
+		file, _ := os.Create(fileName)
+		defer file.Close()
+		png.Encode(file, img2)
+	*/
+
+	if rgba_old != nil {
+		coloursCheck, err := prominentcolor.KmeansWithAll(1, img2, 0, 80, prominentcolor.GetDefaultMasks())
+
+		if err != nil {
+			fmt.Println("Failed to process image", err)
+			return
+		}
+
+		coloursCheck2, err := prominentcolor.KmeansWithAll(1, rgba_old, 0, 80, prominentcolor.GetDefaultMasks())
+		if err != nil {
+			fmt.Println("Failed to process image", err)
+			return
+		}
+		rgba_old = img2
+
+		cl := colorful.Color{
+			R: float64(coloursCheck[0].Color.R),
+			G: float64(coloursCheck[0].Color.R),
+			B: float64(coloursCheck[0].Color.R),
+		}
+
+		ctwo := colorful.Color{
+			R: float64(coloursCheck2[0].Color.R),
+			G: float64(coloursCheck2[0].Color.R),
+			B: float64(coloursCheck2[0].Color.R),
+		}
+
+		distance := cl.DistanceRgb(ctwo)
+		fmt.Println(distance)
+		if distance > 40 {
+			fmt.Println("DistanceRgb: ", distance)
+			fmt.Println(coloursCheck)
+			fmt.Println(coloursCheck2)
+			img, err = screenshot.Capture(300, 420, 2260, 500)
+			if err != nil {
+				fmt.Println(err)
+				fmt.Println("failed getting screen")
+				return
+			}
+		}
+
+	} else {
+		fmt.Println("initial")
+		img, err = screenshot.Capture(300, 420, 2260, 500)
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("failed getting screen")
+			return
+		}
+		rgba_old = img2
 	}
 
-	img3, err2 := screenshot.Capture(0, 1200, 2560, 200)
-	if err2 != nil {
-		fmt.Println(err)
-		fmt.Println("failed getting screen")
-		return
+	if img != nil {
+		colours, err := prominentcolor.Kmeans(img)
+
+		if err != nil {
+			fmt.Println("Failed to process image", err)
+			//return
+		}
+
+		var allColors []string
+
+		for _, colour := range colours {
+			allColors = append(allColors, strconv.FormatUint(uint64(colour.Color.R), 10), strconv.FormatUint(uint64(colour.Color.G), 10), strconv.FormatUint(uint64(colour.Color.B), 10))
+		}
+
+		if len(allColors) != 9 {
+			fmt.Println("info: not enough colors found !")
+			return
+		}
+
+		r.refreshProcessValues(allColors)
 	}
-
-	//first image bounds
-	sp2 := image.Point{img.Bounds().Dx(), img.Bounds().Dy()}
-	//second image Bounds but only the Y (height)
-	tempPoint := image.Point{0, img2.Bounds().Dy()}
-	tempPoint2 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy()}
-	tempPoint3 := image.Point{0, img3.Bounds().Dy() + img2.Bounds().Dy() + img2.Bounds().Dy()}
-	//adding the theoretical size together
-	r2 := image.Rectangle{sp2, sp2.Add(tempPoint2)} //2
-	//creates the calculated stuff as an image Rectangle
-	rgg := image.Rectangle{image.Point{0, 0}, r2.Max}
-	//creates a image
-	rgba := image.NewRGBA(rgg)
-
-	draw.Draw(rgba, img.Bounds().Add(tempPoint), img, image.Point{0, 0}, draw.Src) //2
-
-	draw.Draw(rgba, img2.Bounds(), img2, image.Point{0, 0}, draw.Src)
-
-	draw.Draw(rgba, img3.Bounds().Add(tempPoint3), img3, image.Point{0, 0}, draw.Src) //3
-
-	colours, err := prominentcolor.Kmeans(img)
-
-	if err != nil {
-		fmt.Println("Failed to process image", err)
-		//return
-	}
-
-	var allColors []string
-
-	for _, colour := range colours {
-		allColors = append(allColors, strconv.FormatUint(uint64(colour.Color.R), 10), strconv.FormatUint(uint64(colour.Color.G), 10), strconv.FormatUint(uint64(colour.Color.B), 10))
-	}
-
-	if len(allColors) != 9 {
-		fmt.Println("info: not enough colors found !")
-		return
-	}
-	img = nil
-	r.refreshProcessValues(allColors)
 
 }
 
@@ -168,26 +197,13 @@ func (r *MainValues) startExeProgram() {
 	app := r.cnf.PathToExe
 	c := exec.Command(app)
 	c.SysProcAttr = &syscall.SysProcAttr{}
-
 	stdin, err := c.StdinPipe()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	stdout, err := c.StdoutPipe()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	stderr, err := c.StderrPipe()
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	t := &term{}
 	t.cmd = c
-	t.stderr = stderr
-	t.stdout = stdout
 	t.stdin = stdin
 
 	err = t.cmd.Start()
@@ -197,13 +213,14 @@ func (r *MainValues) startExeProgram() {
 
 	r.command = t
 	fmt.Println("started process successfully")
-
-	done := make(chan error)
-	go func() { done <- r.command.cmd.Wait() }()
-	erro := <-done
-	if erro != nil {
-		fmt.Println("Non-zero exit code:", erro)
-	}
+	/*
+		done := make(chan error)
+		go func() { done <- r.command.cmd.Wait() }()
+		erro := <-done
+		if erro != nil {
+			fmt.Println("Non-zero exit code:", erro)
+		}
+	*/
 }
 
 func (r *MainValues) refreshProcessValues(allColors []string) {
