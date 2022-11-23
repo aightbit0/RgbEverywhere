@@ -34,7 +34,6 @@ type term struct {
 }
 
 var rgba_old *image.RGBA
-var old_distance float64
 
 func main() {
 
@@ -104,7 +103,7 @@ func (r *MainValues) takeScreenshot() {
 
 	// Decode the image (from PNG to image.Image):
 
-	img2, err2 := screenshot.Capture(0, 500, 250, 250)
+	img2, err2 := screenshot.Capture(400, 500, 290, 290)
 	if err2 != nil {
 		fmt.Println(err)
 		fmt.Println("failed getting screen")
@@ -118,39 +117,52 @@ func (r *MainValues) takeScreenshot() {
 	*/
 
 	if rgba_old != nil {
-		coloursCheck, err := prominentcolor.KmeansWithAll(1, img2, 0, 80, prominentcolor.GetDefaultMasks())
+		coloursCheck, err := prominentcolor.KmeansWithAll(1, img2, 0, 60, prominentcolor.GetDefaultMasks())
 
 		if err != nil {
 			fmt.Println("Failed to process image", err)
 			return
 		}
-
-		coloursCheck2, err := prominentcolor.KmeansWithAll(1, rgba_old, 0, 80, prominentcolor.GetDefaultMasks())
-		if err != nil {
-			fmt.Println("Failed to process image", err)
-			return
-		}
-		rgba_old = img2
-
 		cl := colorful.Color{
 			R: float64(coloursCheck[0].Color.R),
-			G: float64(coloursCheck[0].Color.R),
-			B: float64(coloursCheck[0].Color.R),
+			G: float64(coloursCheck[0].Color.G),
+			B: float64(coloursCheck[0].Color.B),
+		}
+
+		coloursCheck2, err := prominentcolor.KmeansWithAll(1, rgba_old, 0, 60, prominentcolor.GetDefaultMasks())
+		if err != nil {
+			fmt.Println("Failed to process image", err)
+			rgba_old = nil
+			return
 		}
 
 		ctwo := colorful.Color{
 			R: float64(coloursCheck2[0].Color.R),
-			G: float64(coloursCheck2[0].Color.R),
-			B: float64(coloursCheck2[0].Color.R),
+			G: float64(coloursCheck2[0].Color.G),
+			B: float64(coloursCheck2[0].Color.B),
 		}
 
 		distance := cl.DistanceRgb(ctwo)
+		fmt.Println(cl)
+		fmt.Println(ctwo)
 		fmt.Println(distance)
-		if distance > 40 {
-			fmt.Println("DistanceRgb: ", distance)
-			fmt.Println(coloursCheck)
-			fmt.Println(coloursCheck2)
-			img, err = screenshot.Capture(300, 420, 2260, 500)
+		/*
+			fileName := "1_1_1.png"
+			file, _ := os.Create(fileName)
+			defer file.Close()
+			png.Encode(file, img2)
+
+			fileName2 := "1_2_1.png"
+			file2, _ := os.Create(fileName2)
+			defer file2.Close()
+			png.Encode(file2, rgba_old)
+		*/
+		if distance > 51 {
+			//fmt.Println("DistanceRgb: ", distance)
+			//fmt.Println(coloursCheck)
+			//fmt.Println(coloursCheck2)
+
+			img, err = screenshot.Capture(300, 420, 2260, 600)
 			if err != nil {
 				fmt.Println(err)
 				fmt.Println("failed getting screen")
@@ -160,7 +172,7 @@ func (r *MainValues) takeScreenshot() {
 
 	} else {
 		fmt.Println("initial")
-		img, err = screenshot.Capture(300, 420, 2260, 500)
+		img, err = screenshot.Capture(300, 420, 2260, 600)
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("failed getting screen")
@@ -170,11 +182,11 @@ func (r *MainValues) takeScreenshot() {
 	}
 
 	if img != nil {
-		colours, err := prominentcolor.Kmeans(img)
+		colours, err := prominentcolor.KmeansWithAll(3, img, 0, 70, prominentcolor.GetDefaultMasks())
 
 		if err != nil {
 			fmt.Println("Failed to process image", err)
-			//return
+			return
 		}
 
 		var allColors []string
@@ -190,6 +202,7 @@ func (r *MainValues) takeScreenshot() {
 
 		r.refreshProcessValues(allColors)
 	}
+	rgba_old = img2
 
 }
 
