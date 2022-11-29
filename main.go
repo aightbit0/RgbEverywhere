@@ -100,21 +100,12 @@ func newInstance(conf *Config) *MainValues {
 func (r *MainValues) takeScreenshot() {
 	var img *image.RGBA
 	var err error
-
-	// Decode the image (from PNG to image.Image):
-
 	img2, err2 := screenshot.Capture(400, 500, 290, 290)
 	if err2 != nil {
 		fmt.Println(err)
 		fmt.Println("failed getting screen")
 		return
 	}
-	/*
-		fileName := "1_1_1.png"
-		file, _ := os.Create(fileName)
-		defer file.Close()
-		png.Encode(file, img2)
-	*/
 
 	if rgba_old != nil {
 		coloursCheck, err := prominentcolor.KmeansWithAll(1, img2, 0, 60, prominentcolor.GetDefaultMasks())
@@ -143,25 +134,11 @@ func (r *MainValues) takeScreenshot() {
 		}
 
 		distance := cl.DistanceRgb(ctwo)
-		fmt.Println(cl)
-		fmt.Println(ctwo)
-		fmt.Println(distance)
-		/*
-			fileName := "1_1_1.png"
-			file, _ := os.Create(fileName)
-			defer file.Close()
-			png.Encode(file, img2)
+		//fmt.Println(cl)
+		//fmt.Println(ctwo)
+		//fmt.Println(distance)
 
-			fileName2 := "1_2_1.png"
-			file2, _ := os.Create(fileName2)
-			defer file2.Close()
-			png.Encode(file2, rgba_old)
-		*/
 		if distance > 51 {
-			//fmt.Println("DistanceRgb: ", distance)
-			//fmt.Println(coloursCheck)
-			//fmt.Println(coloursCheck2)
-
 			img, err = screenshot.Capture(300, 420, 2260, 600)
 			if err != nil {
 				fmt.Println(err)
@@ -171,7 +148,7 @@ func (r *MainValues) takeScreenshot() {
 		}
 
 	} else {
-		fmt.Println("initial")
+		//fmt.Println("initial")
 		img, err = screenshot.Capture(300, 420, 2260, 600)
 		if err != nil {
 			fmt.Println(err)
@@ -226,14 +203,6 @@ func (r *MainValues) startExeProgram() {
 
 	r.command = t
 	fmt.Println("started process successfully")
-	/*
-		done := make(chan error)
-		go func() { done <- r.command.cmd.Wait() }()
-		erro := <-done
-		if erro != nil {
-			fmt.Println("Non-zero exit code:", erro)
-		}
-	*/
 }
 
 func (r *MainValues) refreshProcessValues(allColors []string) {
