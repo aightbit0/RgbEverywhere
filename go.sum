@@ -26,6 +26,8 @@ github.com/vitali-fedulov/images/v2 v2.1.5 h1:zhAss4mN/3JzpPYxsvw9RL0AQPZqQ3keFw
 github.com/vitali-fedulov/images/v2 v2.1.5/go.mod h1:Uf6xw8bNfbWjRE/qS0kDNvSTchTwohLBZR0AKhmfNWM=
 github.com/vova616/screenshot v0.0.0-20191005130345-da36db2560ab h1:vUMgeWLl6VfXlgjNYPrSZrgEVeLTQygricKsAcJjBZ0=
 github.com/vova616/screenshot v0.0.0-20191005130345-da36db2560ab/go.mod h1:gjlNhAXON0uGGilpsAZpMx5bN1ZVavUlJETHif7w4HQ=
+github.com/vova616/screenshot v0.0.0-20220801010501-56c10359473c h1:mqgl+NQgzZ30EX7oA3uNIlPn6dAgG6sThBiUodUzZpU=
+github.com/vova616/screenshot v0.0.0-20220801010501-56c10359473c/go.mod h1:gjlNhAXON0uGGilpsAZpMx5bN1ZVavUlJETHif7w4HQ=
 golang.org/x/sys v0.0.0-20201018230417-eeed37f84f13/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 h1:0A+M6Uqn+Eje4kHMK80dtF3JCXC4ykBgQG4Fe06QRhQ=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
